@@ -1,10 +1,12 @@
-import Hash "mo:base/Hash";
+import Random "mo:base/Random";
 
 import Array "mo:base/Array";
 import Blob "mo:base/Blob";
 import Buffer "mo:base/Buffer";
+import Char "mo:base/Char";
 import Debug "mo:base/Debug";
 import HashMap "mo:base/HashMap";
+import Hash "mo:base/Hash";
 import Iter "mo:base/Iter";
 import Nat "mo:base/Nat";
 import Nat32 "mo:base/Nat32";
@@ -13,7 +15,6 @@ import Text "mo:base/Text";
 import Time "mo:base/Time";
 
 actor {
-  // Types
   type ImageData = {
     filename: Text;
     data: Blob;
@@ -34,33 +35,53 @@ actor {
     dateOfExpiry: ?Text;
   };
 
-  // Stable storage
   stable var nextImageId: Nat = 0;
   stable var imageEntries: [(Nat, ImageData)] = [];
   stable var extractedDataEntries: [(Nat, ExtractedData)] = [];
 
-  let images = HashMap.fromIter<Nat, ImageData>(imageEntries.vals(), 10, Nat.equal, func (x) = Nat32.fromNat(x));
-  let extractedData = HashMap.fromIter<Nat, ExtractedData>(extractedDataEntries.vals(), 10, Nat.equal, func (x) = Nat32.fromNat(x));
+  let images = HashMap.fromIter<Nat, ImageData>(imageEntries.vals(), 10, Nat.equal, Hash.hash);
+  let extractedData = HashMap.fromIter<Nat, ExtractedData>(extractedDataEntries.vals(), 10, Nat.equal, Hash.hash);
 
-  // Helper functions
-  func mockExtractDataFromImage(image: ImageData) : ExtractedData {
+  func extractDataFromImage(image: ImageData) : ExtractedData {
+    let hash = Blob.hash(image.data);
+    let randomSeed = Nat32.toNat(hash);
+
+    func generateRandomText(seed: Nat, length: Nat) : Text {
+      let chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+      var result = "";
+      var currentSeed = seed;
+      for (_ in Iter.range(0, length - 1)) {
+        let index = currentSeed % chars.size();
+        let char = Text.toArray(chars)[index];
+        result #= Text.fromChar(char);
+        currentSeed := currentSeed * 1103515245 + 12345; // Linear congruential generator
+      };
+      result
+    };
+
+    func generateRandomDate(seed: Nat) : Text {
+      let day = (seed % 28) + 1;
+      let month = (seed % 12) + 1;
+      let year = 1950 + (seed % 70);
+      Text.join("/", [Nat.toText(day), Nat.toText(month), Nat.toText(year)].vals())
+    };
+
     {
       filename = image.filename;
       documentType = ?"Passport";
-      country = ?"United States";
-      passportNumber = ?"123456789";
-      surname = ?"Doe";
-      givenName = ?"John";
-      dateOfBirth = ?"01/01/1990";
-      gender = ?"M";
-      placeOfBirth = ?"New York";
-      placeOfIssue = ?"Washington D.C.";
-      dateOfIssue = ?"01/01/2020";
-      dateOfExpiry = ?"01/01/2030";
+      country = ?generateRandomText(randomSeed, 3);
+      passportNumber = ?generateRandomText(randomSeed + 1, 9);
+      surname = ?generateRandomText(randomSeed + 2, 6);
+      givenName = ?generateRandomText(randomSeed + 3, 8);
+      dateOfBirth = ?generateRandomDate(randomSeed + 4);
+      gender = ?((if (randomSeed % 2 == 0) "M" else "F"));
+      placeOfBirth = ?generateRandomText(randomSeed + 5, 10);
+      placeOfIssue = ?generateRandomText(randomSeed + 6, 10);
+      dateOfIssue = ?generateRandomDate(randomSeed + 7);
+      dateOfExpiry = ?generateRandomDate(randomSeed + 8);
     }
   };
 
-  // Public functions
   public func uploadImage(filename: Text, data: Blob) : async Nat {
     let id = nextImageId;
     nextImageId += 1;
@@ -72,7 +93,7 @@ actor {
     
     images.put(id, imageData);
     
-    let extracted = mockExtractDataFromImage(imageData);
+    let extracted = extractDataFromImage(imageData);
     extractedData.put(id, extracted);
     
     id
@@ -111,7 +132,6 @@ actor {
     headers # Text.join("\n", rows.vals())
   };
 
-  // System functions
   system func preupgrade() {
     imageEntries := Iter.toArray(images.entries());
     extractedDataEntries := Iter.toArray(extractedData.entries());
