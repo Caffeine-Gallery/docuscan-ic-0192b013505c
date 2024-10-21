@@ -1,0 +1,21 @@
+type ExtractedData = 
+ record {
+   country: opt text;
+   dateOfBirth: opt text;
+   dateOfExpiry: opt text;
+   dateOfIssue: opt text;
+   documentType: opt text;
+   filename: text;
+   gender: opt text;
+   givenName: opt text;
+   passportNumber: opt text;
+   placeOfBirth: opt text;
+   placeOfIssue: opt text;
+   surname: opt text;
+ };
+service : {
+  generateCSV: () -> (text) query;
+  getAllExtractedData: () -> (vec ExtractedData) query;
+  getExtractedData: (nat) -> (opt ExtractedData) query;
+  uploadImage: (text, blob) -> (nat);
+}
