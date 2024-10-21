@@ -15,15 +15,17 @@ uploadButton.addEventListener('click', async () => {
   resultsDiv.innerHTML = 'Processing...';
 
   for (const file of files) {
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      const arrayBuffer = e.target.result;
-      const blob = new Blob([new Uint8Array(arrayBuffer)]);
-      const id = await backend.uploadImage(file.name, blob);
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const uint8Array = new Uint8Array(arrayBuffer);
+
+      const id = await backend.uploadImage(file.name, uint8Array);
       const extractedData = await backend.getExtractedData(id);
       displayResult(extractedData);
-    };
-    reader.readAsArrayBuffer(file);
+    } catch (error) {
+      console.error('Error processing file:', file.name, error);
+      resultsDiv.innerHTML += `<p>Error processing ${file.name}: ${error.message}</p>`;
+    }
   }
 });
 
@@ -47,14 +49,19 @@ function displayResult(data) {
 }
 
 downloadCSVButton.addEventListener('click', async () => {
-  const csv = await backend.generateCSV();
-  const blob = new Blob([csv], { type: 'text/csv' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'extracted_data.csv';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  try {
+    const csv = await backend.generateCSV();
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'extracted_data.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    console.error('Error downloading CSV:', error);
+    alert('Error downloading CSV: ' + error.message);
+  }
 });
